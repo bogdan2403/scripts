@@ -1,95 +1,69 @@
+import threading
+import urllib
+import getpass
+
 import vk
-import urllib.request
-import time
 import os
 
 
-class Audio_info():
+class Audio():
     """object with information about track"""
 
-    def __init__(self, track):
-        self.title = track['title']
-        self.artist = track['artist']
-        self.url = track['url']
+    def __init__(self):
+        self.login()
+        self.get_audio()
+        self.count = len(self.list_audio) - 1
 
-    def __str__(self):
-        """"return name track (str)"""
-        return '{0} - {1}'.format(self.artist, self.title)
+    def login(self):
+        while True:
+            login = input("input your login: ")
+            password = getpass.getpass("input your password: ")
+            try:
+                session = vk.AuthSession(app_id='3697615', user_login=login,
+                                         user_password=password)
+                self.api = vk.API(session)
+            except vk.exceptions.VkAuthError:
+                print("you made mistake, try again")
+            else:
+                break
 
+    def get_audio(self):
+        self.list_audio = self.api.audio.get()
 
-# initialization session
-while True:
-    login = input("input your login: ")
-    password = input("input your password: ")
-    try:
-        session = vk.AuthSession(app_id='3697615', user_login=login, user_password=password)
-        api = vk.API(session)
-    except vk.exceptions.VkAuthError:
-        print("you made mistake, try again")
-    else:
-        break
-
-
-def repl(track):
-    track_name = str(track)
-
-    # check name on symbol '/', ':' and '?'"
-    # return index if is symbol
-    def check(track):
-        flag0 = track.find("/")
-        flag1 = track.find(":")
-        flag2 = track.find("?")
-        flag3 = track.find("|")
-        flag4 = track.find('"')
-        if flag0 != -1:
-            return flag0
-        if flag1 != -1:
-            return flag1
-        if flag2 != -1:
-            return flag2
-        if flag3 != -1:
-            return flag3
-        if flag4 != -1:
-            return flag4
-
-    flag = check(track_name)
-    if flag or flag == 0:
-        while flag or flag == 0:
-            # we can't change symbol in string, so we use list
-            track_name = list(track_name)
-            track_name[flag] = ""
-            # i don't know why doesn't work str(), it returns list
-            s = ''
-            for i in track_name:
-                s = s + i
-            # for check need
-            flag = check(s)
-            track_name = s
-    # return track_name without symbol '/', ':' and '?'
-    return track_name
-
-
-list_audio = api.audio.get()
-i = len(list_audio) - 1
-if not os.path.exists('music/'):
-    os.makedirs('music')
-for i, track in enumerate(reversed(list_audio)):
-    track = Audio_info(track)
-    track_name = repl(track)
-    if not os.path.exists('music/{0}.mp3'.format(track_name)):
-        print(ascii('start to write: {0}'.format(track_name)))
-        try:
-            t1 = time.time()
-            down_file = urllib.request.urlopen(track.url).read()
-            f = open('music/{0}.mp3'.format(track_name), 'wb')
-            f.write(down_file)
-            f.close()
-            t2 = time.time() - t1
-            mass = os.path.getsize('music/{0}.mp3'.format(track_name)) / 1024 / 1024
-            print(ascii('{0}  {1} Mb/s'.format(track_name, round(mass / t2, 1))))
+    def download(self, count=0):
+        name = self.get_name(count)
+        if not os.path.exists('{0}.mp3'.format(name)):
+            print('start to write: "{0}"'.format(name))
+            try:
+                down_file = urllib.request.urlopen(self.list_audio[count]['url']).read()  # download file from network
+                f = open('{0}.mp3'.format(name), 'wb')
+                f.write(down_file)
+                f.close()
+                print('"{0}"  was successfully loaded'.format(name))
             # if track doesn't exist on server (was deleted and some else)
-        except urllib.request.URLError:
-            print(ascii('track does no\'t exist'))
-    else:
-        print(ascii('track {0} was load before'.format(track_name)))
-    i -= 1
+            except urllib.error.HTTPError:
+                print('track "{0}" does not exist'.format(name))
+            except KeyError:
+                print('track "{0}" is not accessible'.format(name))
+        else:
+            print('track "{0}" was load before'.format(name))
+
+    def download_all(self, quantity=4):
+        while True:
+            if self.count < 0: return
+            threads = []
+            if threading.active_count() < quantity:
+                for i in range(quantity - threading.active_count()):
+                    threads.append(threading.Thread(target=self.download, args=(self.count,)))
+                    self.count -= 1
+            for thread in threads:
+                thread.start()
+
+    def get_name(self, count=0):
+        name = '{0}/ - {1}'.format(self.list_audio[count]['artist'], self.list_audio[count]['title'])
+        for char in '/:?|"':
+            name = name.replace(char, '')
+        return name
+
+
+Audio().download_all()

@@ -39,7 +39,7 @@ class Audio():
                 f = open('{0}.mp3'.format(name), 'wb')
                 f.write(down_file)
                 f.close()
-                print('"{0}"  was successfully loaded'.format(name))
+                print('"{0}"  was loaded successfully'.format(name))
             # if track doesn't exist on server (was deleted and some else)
             except urllib.error.HTTPError:
                 print('track "{0}" does not exist'.format(name))
@@ -49,21 +49,20 @@ class Audio():
             print('track "{0}" was load before'.format(name))
 
     def download_all(self, quantity=4):
+        quantity += 1
         while True:
             if self.count < 0: return
-            threads = []
             if threading.active_count() < quantity:
                 for i in range(quantity - threading.active_count()):
-                    threads.append(threading.Thread(target=self.download, args=(self.count,)))
+                    threading.Thread(target=self.download, args=(self.count,)).start()
                     self.count -= 1
-            for thread in threads:
-                thread.start()
 
     def get_name(self, count=0):
-        name = '{0}/ - {1}'.format(self.list_audio[count]['artist'], self.list_audio[count]['title'])
+        name = '{0} - {1}'.format(self.list_audio[count]['artist'], self.list_audio[count]['title'])
         for char in '/:?|"':
             name = name.replace(char, '')
         return name
 
 
-Audio().download_all()
+if __name__ == '__main__':
+    Audio().download_all()
